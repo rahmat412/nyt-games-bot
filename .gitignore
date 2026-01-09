@@ -22,6 +22,8 @@ var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
+chrome-win64/
+chromedriver.exe
 *.egg-info/
 .installed.cfg
 *.egg
@@ -36,6 +38,10 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
+#docker stuff
+.env.docker
+docker.sh
 
 # Unit test / coverage reports
 htmlcov/
@@ -103,6 +109,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env_docker
 .venv
 env/
 venv/

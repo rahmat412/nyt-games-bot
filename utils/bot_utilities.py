@@ -1,24 +1,24 @@
+from math import floor
+import os
 import discord, io, re
 import matplotlib.pyplot as plt
 from bokeh.io.export import get_screenshot_as_png
 from bokeh.models import ColumnDataSource, DataTable, TableColumn
-from enum import Enum, auto
 from datetime import date, datetime, timedelta, timezone
 from discord.ext import commands
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 
-class NYTGame(Enum):
-    CONNECTIONS = auto()
-    STRANDS = auto()
-    WORDLE = auto()
-    UNKNOWN = auto()
+from utils.nyt_game import NYTGame
 
 class BotUtilities():
     def __init__(self, client: discord.Client, bot: commands.Bot) -> None:
         self.client: discord.Client = client
         self.bot: commands.Bot = bot
+        self.chrome_driver_path = os.environ.get('CHROME_DRIVER_PATH')
+        self.chrome_binary_path = os.environ.get('CHROME_BINARY_PATH')
+
 
     # GAME TYPE
 
@@ -30,6 +30,23 @@ class BotUtilities():
             return NYTGame.STRANDS
         elif 'wordle' in channel_name:
             return NYTGame.WORDLE
+        elif 'pips' in channel_name:
+            return NYTGame.PIPS
+        else:
+            return NYTGame.UNKNOWN
+        
+    def get_game_from_command(self, *args: str) -> NYTGame:
+        if len(args) == 0:
+            return NYTGame.UNKNOWN
+        message_content: str = args[0].lower()
+        if 'connections' in message_content:
+            return NYTGame.CONNECTIONS
+        elif 'strands' in message_content:
+            return NYTGame.STRANDS
+        elif 'wordle' in message_content:
+            return NYTGame.WORDLE
+        elif 'pips' in message_content:
+            return NYTGame.PIPS
         else:
             return NYTGame.UNKNOWN
 
@@ -57,13 +74,17 @@ class BotUtilities():
             return False
 
     def is_wordle_submission(self, line: str) -> str:
-        return re.match(r'^Wordle (\d+|\d{1,3}(,\d{3})*)( 🎉)? (\d|X)\/\d$', line)
+        return re.match(r'^Wordle (\d+|\d{1,3}(,\d{3})*)( 🎉)? (\d|X)\/\d\*?$', line)
 
     def is_connections_submission(self, lines: str) -> str:
         return re.match(r'^Connections *(\n)Puzzle #\d+', lines)
 
     def is_strands_submission(self, lines: str) -> str:
         return re.match(r'Strands #\d+', lines)
+    
+    def is_pips_submission(self, lines: str) -> str:
+        return re.match(r'Pips #\d+', lines)
+
 
     # DATES/TIMES
 
@@ -86,6 +107,18 @@ class BotUtilities():
             return datetime.strptime(date_str, f'%m/%d/%Y').date()
         else:
             return None
+    def seconds_to_mm_ss(self, total_seconds):
+        """
+        Converts a total number of seconds into a MM:SS string format.
+
+        Args:
+            total_seconds (int): The total number of seconds.
+
+        Returns:
+            str: The time in MM:SS format.
+        """
+        minutes, seconds = divmod(int(floor(total_seconds)), 60)
+        return f"{minutes:02}:{seconds:02}"
 
     # CONVERT
 
@@ -108,11 +141,14 @@ class BotUtilities():
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument('--headless')
+        chrome_options.binary_location = self.chrome_binary_path
 
-        service = Service(executable_path='/usr/bin/chromedriver')
+        service = Service(executable_path=self.chrome_driver_path)
         driver = webdriver.Chrome(service=service, options=chrome_options)
+        
 
         generated: Image.Image = get_screenshot_as_png(data_table, driver=driver)
+        driver.quit()
         return self._trim_image(generated)
 
     def _trim_image(self, image: Image.Image) -> Image.Image:

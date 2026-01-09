@@ -4,15 +4,15 @@ import pandas as pd
 import seaborn as sns
 from datetime import timedelta
 from discord.ext import commands
-from data.connections import ConnectionsDatabaseHandler
+from data.pips import PipsDatabaseHandler
 from games.base_command_handler import BaseCommandHandler
 from models.base_game import PuzzleQueryType
-from models.connections import ConnectionsPlayerStats, ConnectionsPuzzleEntry
+from models.pips import PipsPlayerStats, PipsPuzzleEntry
 from utils.bot_utilities import BotUtilities
 
-class ConnectionsCommandHandler(BaseCommandHandler):
+class PipsCommandHandler(BaseCommandHandler):
     def __init__(self, utils: BotUtilities) -> None:
-        super().__init__(utils, ConnectionsDatabaseHandler(utils))
+        super().__init__(utils, PipsDatabaseHandler(utils))
 
     ######################
     #   MEMBER METHODS   #
@@ -66,27 +66,27 @@ class ConnectionsCommandHandler(BaseCommandHandler):
             await ctx.reply("Couldn't understand your command. Try `?help ranks`.")
             return
 
-        stats: list[ConnectionsPlayerStats] = []
+        stats: list[PipsPlayerStats] = []
         for user_id in self.db.get_all_players():
             player_puzzles = self.db.get_puzzles_by_player(user_id)
             intersection = list(set(player_puzzles).intersection(valid_puzzles))
             if len(intersection) > 0:
-                stats.append(ConnectionsPlayerStats(user_id, valid_puzzles, self.db))
+                stats.append(PipsPlayerStats(user_id, valid_puzzles, self.db))
 
         if len(stats) == 0:
             await ctx.reply(f"Sorry, no users could be found for this query.")
             return
 
         if query_type != PuzzleQueryType.ALL_TIME:
-            # for all queries except 'All-time', we rank based on the adjusted mean
-            stats.sort(key = lambda p: (p.adj_mean))
+            # for all queries except 'All-time', we rank based on the adjusted rating
+            stats.sort(key = lambda p: (p.avg_total_seconds < 0, p.avg_total_seconds))
         else:
-            # for all-time queries, we must rank on the raw score (since adj. will be skewed)
-            stats.sort(key = lambda p: (p.raw_mean))
+            # for all-time queries, we must rank on the raw rating (since adj. will be skewed)
+            stats.sort(key = lambda p: (p.avg_total_seconds < 0, p.avg_total_seconds))
 
         if query_type == PuzzleQueryType.SINGLE_PUZZLE:
             # stats for just 1 puzzle
-            df = pd.DataFrame(columns=['Rank', 'User', 'Score'])
+            df = pd.DataFrame(columns=['Rank', 'User', 'Easy Time', 'Medium Time', 'Hard Time'])
             for i, player_stats in enumerate(stats):
                 if i > 0 and player_stats.get_stat_list() == stats[i - 1].get_stat_list():
                     player_stats.rank = stats[i - 1].rank
@@ -97,11 +97,14 @@ class ConnectionsCommandHandler(BaseCommandHandler):
                     df.loc[i] = [
                         player_stats.rank,
                         self.utils.get_nickname(player_stats.user_id),
-                        f"{player_stats.raw_mean:d}/7"
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_easy_seconds)} {'🍪' if player_stats.easy_cookie_rate >= 1.0 else ''}" if player_stats.avg_easy_seconds >= 0 else '',
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_medium_seconds)} {'🍪' if player_stats.medium_cookie_rate >= 1.0 else ''}" if player_stats.avg_medium_seconds >= 0 else '',
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_hard_seconds)} {'🍪' if player_stats.hard_cookie_rate >= 1.0 else ''}" if player_stats.avg_hard_seconds >= 0 else ''
                     ]
-        elif query_type == PuzzleQueryType.MULTI_PUZZLE:
+        elif query_type == PuzzleQueryType.MULTI_PUZZLE or query_type == PuzzleQueryType.ALL_TIME:
+        
             # stats for 2+ puzzles, but not all-time
-            df = pd.DataFrame(columns=['Rank', 'User', 'Average', '🧩', '🚫'])
+            df = pd.DataFrame(columns=['Rank', 'User', 'Easy Avg', 'Medium Avg', 'Hard Avg','Easy 🍪%','Medium 🍪%', 'Hard 🍪%', '🧩', '🚫'])
             for i, player_stats in enumerate(stats):
                 if i > 0 and player_stats.get_stat_list() == stats[i - 1].get_stat_list():
                     player_stats.rank = stats[i - 1].rank
@@ -111,24 +114,14 @@ class ConnectionsCommandHandler(BaseCommandHandler):
                     df.loc[i] = [
                         player_stats.rank,
                         self.utils.get_nickname(player_stats.user_id),
-                        f"{player_stats.adj_mean:.2f}/7 ({player_stats.raw_mean:.2f}/7)",
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_easy_seconds)}" if player_stats.avg_easy_seconds >= 0 else '',
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_medium_seconds)}" if player_stats.avg_medium_seconds >= 0 else '',
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_hard_seconds)}" if player_stats.avg_hard_seconds >= 0 else '',
+                        f"{player_stats.easy_cookie_rate:.2%}",
+                        f"{player_stats.medium_cookie_rate:.2%}",
+                        f"{player_stats.hard_cookie_rate:.2%}",
                         len(valid_puzzles) - player_stats.missed_games,
                         player_stats.missed_games
-                    ]
-        elif query_type == PuzzleQueryType.ALL_TIME:
-            # stats for 2+ puzzles, for all-time
-            df = pd.DataFrame(columns=['Rank', 'User', 'Average', '🧩'])
-            for i, player_stats in enumerate(stats):
-                if i > 0 and player_stats.get_stat_list() == stats[i - 1].get_stat_list():
-                    player_stats.rank = stats[i - 1].rank
-                else:
-                    player_stats.rank = i + 1
-                if i <= self.MAX_DATAFRAME_ROWS:
-                    df.loc[i] = [
-                        player_stats.rank,
-                        self.utils.get_nickname(player_stats.user_id),
-                        f"{player_stats.raw_mean:.2f}/7",
-                        len(valid_puzzles) - player_stats.missed_games
                     ]
 
         ranks_img = self.utils.get_image_from_df(df)
@@ -199,17 +192,18 @@ class ConnectionsCommandHandler(BaseCommandHandler):
         puzzle_ids.sort()
 
         if user_id in self.db.get_all_players():
-            user_puzzles: list[ConnectionsPuzzleEntry] = self.db.get_entries_by_player(user_id)
-            df = pd.DataFrame(columns=['User', 'Puzzle', 'Score'])
+            user_puzzles: list[PipsPuzzleEntry] = self.db.get_entries_by_player(user_id)
+            df = pd.DataFrame(columns=['User', 'Puzzle #', 'Easy Time', 'Medium Time', 'Hard Time'])
             for i, puzzle_id in enumerate(puzzle_ids):
                 found_match = False
                 for entry in user_puzzles:
                     if entry.puzzle_id == puzzle_id:
-                        score_str = 'X' if entry.score == 8 else str(entry.score)
                         df.loc[i] = [
                             self.utils.get_nickname(user_id),
                             f"#{puzzle_id}",
-                            f"{score_str}/7",
+                            f"{self.utils.seconds_to_mm_ss(entry.easy_seconds)} {'🍪' if entry.easy_cookie else ''}" if entry.easy_seconds else '',
+                            f"{self.utils.seconds_to_mm_ss(entry.medium_seconds)} {'🍪' if entry.medium_cookie else ''}" if entry.medium_seconds else '',
+                            f"{self.utils.seconds_to_mm_ss(entry.hard_seconds)} {'🍪' if entry.hard_cookie else ''}" if entry.hard_seconds else '',
                         ]
                         found_match = True
                         break
@@ -217,7 +211,10 @@ class ConnectionsCommandHandler(BaseCommandHandler):
                     df.loc[i] = [
                         self.utils.get_nickname(user_id),
                         f"#{puzzle_id}",
-                        "?/7",
+                        "?",
+                        "?",
+                        "?",
+                        "?"
                     ]
             entries_img = self.utils.get_image_from_df(df)
             if entries_img is not None:
@@ -232,6 +229,8 @@ class ConnectionsCommandHandler(BaseCommandHandler):
 
     async def get_stats(self, ctx: commands.Context, *args: str) -> None:
         missing_users_str = None
+        valid_puzzles = self.db.get_all_puzzles()
+
         if len(args) == 0:
             user_ids = [str(ctx.author.id)]
         else:
@@ -253,45 +252,57 @@ class ConnectionsCommandHandler(BaseCommandHandler):
                 else:
                     await ctx.reply(f"Couldn't find user(s): <@{'>, <@'.join(unknown_ids)}>")
                     return
+                
 
-        df = pd.DataFrame(columns=['User', 'Avg Score', '🧩', '🚫'])
+        df = pd.DataFrame(columns=['User', 'Easy Avg', 'Medium Avg', 'Hard Avg','Easy 🍪%','Medium 🍪%', 'Hard 🍪%', '🧩', '🚫'])
         for i, user_id in enumerate(user_ids):
             puzzle_list = self.db.get_puzzles_by_player(user_id)
-            player_stats = ConnectionsPlayerStats(user_id, puzzle_list, self.db)
+            player_stats = PipsPlayerStats(user_id, puzzle_list, self.db)
             df.loc[i] = [
-                self.utils.get_nickname(user_id),
-                f"{player_stats.raw_mean:.4f}",
-                len(puzzle_list),
-                len(self.db.get_all_puzzles()) - len(puzzle_list),
+                 self.utils.get_nickname(player_stats.user_id),
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_easy_seconds)}",
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_medium_seconds)}",
+                        f"{self.utils.seconds_to_mm_ss(player_stats.avg_hard_seconds)}",
+                        f"{player_stats.easy_cookie_rate:.2%}",
+                        f"{player_stats.medium_cookie_rate:.2%}",
+                        f"{player_stats.hard_cookie_rate:.2%}",
+                        len(valid_puzzles) - player_stats.missed_games,
+                        player_stats.missed_games
             ]
 
         stats_img = self.utils.get_image_from_df(df)
 
         hist_img = None
         if len(user_ids) < 5:
-            valid_scores = ['4/7', '5/7', '6/7', '7/7', 'X/7']
+            valid_levels = ['Easy', 'Medium', 'Hard']
             plt.rcParams.update({'font.size': 20})
 
-            df = pd.DataFrame(columns=['Player', 'Score', 'Count'])
+            df = pd.DataFrame(columns=['Player', 'Difficulty', 'Cookie Count'])
             for i, user_id in enumerate(user_ids):
-                score_counts = [0] * len(valid_scores)
-                entries: list[ConnectionsPuzzleEntry] = self.db.get_entries_by_player(user_id)
-                for score in [entry.score for entry in entries]:
-                    score_counts[score - 4] += 1
-                for j in range(0, len(valid_scores)):
-                    df.loc[i*len(valid_scores) + j] = [
+                cookie_counts = [0] * len(valid_levels)
+                entries: list[PipsPuzzleEntry] = self.db.get_entries_by_player(user_id)
+                for entry in entries:
+                    if entry.easy_cookie:
+                        cookie_counts[0] += 1
+                    if entry.medium_cookie:
+                        cookie_counts[1] += 1
+                    if entry.hard_cookie:
+                        cookie_counts[2] += 1
+
+                for j in range(0, len(valid_levels)):
+                    df.loc[i*len(valid_levels) + j] = [
                         self.utils.remove_emojis(self.utils.get_nickname(user_id)),
-                        valid_scores[j],
-                        score_counts[j]
+                        valid_levels[j],
+                        cookie_counts[j]
                     ]
-            g = sns.catplot(x='Score', y='Count', hue='Player', data=df, kind='bar')
+            g = sns.catplot(x='Difficulty', y='Cookie Count', hue='Player', data=df, kind='bar')
             for ax in g.axes.ravel():
                 for c in ax.containers:
                     labels = ['%d' % v.get_height() for v in c]
                     ax.bar_label(c, labels=labels, label_type='edge', fontsize=15)
             fig = plt.gcf()
             fig.subplots_adjust(bottom=0.2)
-            fig.set_size_inches(10, 5)
+            fig.set_size_inches(15, 5)
             hist_img = self.utils.fig_to_image(fig)
             hist_img = self.utils.resize_image(hist_img, width = stats_img.size[0])
             plt.close()
@@ -308,9 +319,9 @@ class ConnectionsCommandHandler(BaseCommandHandler):
         else:
             await ctx.reply("Sorry, an error occurred while trying to fetch stats.")
 
-    ######################
-    #   OWNER METHODS    #
-    ######################
+    # ######################
+    # #   OWNER METHODS    #
+    # ######################
 
     async def remove_entry(self, ctx: commands.Context, *args: str) -> None:
         if len(args) == 1 and self.utils.is_user(args[0]):
@@ -335,19 +346,19 @@ class ConnectionsCommandHandler(BaseCommandHandler):
             await ctx.reply(f"Could not find entry for Puzzle #{puzzle_id} for user <@{user_id}>.")
 
     async def add_score(self, ctx: commands.Context, *args: str) -> None:
-        if args is not None and len(args) >= 4:
+        if args is not None and len(args) >= 3:
             if self.utils.is_user(args[0]):
                 user_id = args[0].strip("<>@! ")
-                title = f"{args[1]}\n{args[2]} {args[3]}"
-                content = '\n'.join(args[4:])
+                title = f"{args[1]} {args[2]}"
+                content = '\n'.join(args[3:])
             else:
                 user_id = str(ctx.author.id)
-                title = f"{args[0]}\n{args[1]} {args[2]}"
-                content = '\n'.join(args[3:])
-            if self.utils.is_connections_submission(title):
+                title = f"{args[0]} {args[1]}"
+                content = '\n'.join(args[2:])
+            if self.utils.is_strands_submission(title):
                 if self.db.add_entry(user_id, title, content):
                     await ctx.message.add_reaction('✅')
                 else:
                     await ctx.message.add_reaction('❌')
         else:
-            await ctx.reply("To manually add a Connections score, please use `?add <user> <Connections output>` (specifying a user is optional).")
+            await ctx.reply("To manually add a Strands score, please use `?add <user> <Strands output>` (specifying a user is optional).")
