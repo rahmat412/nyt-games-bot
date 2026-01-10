@@ -1,10 +1,10 @@
 # NYT Games Discord Bot 🤖
 
-### A little Discord bot that tracks Wordle, Connections, and Strands scores and maintains a server leaderboard.
+### A little Discord bot that tracks Wordle, Connections, Strands, and Pips scores and maintains a server leaderboard.
 
 Track the daily, weekly, and all-time leaderboards for your server, plus get some additional stats on how well you've played. Just copy & paste your game results into Discord chat and the bot will track it.
 
-### 🟩 🟨 ⬜ • 🟨 🟩 🟦 🟪 • 🔵 💡 🟡
+### 🟩 🟨 ⬜ &nbsp;•&nbsp; 🟨 🟩 🟦 🟪 &nbsp;•&nbsp; 🔵 💡 🟡 &nbsp;•&nbsp; 🍪
 
 ## Commands
 - `?ranks (today|week|all-time|<puzzle #>)`

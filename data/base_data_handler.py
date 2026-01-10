@@ -4,6 +4,7 @@ from mysql.connector import MySQLConnection, connect
 from mysql.connector.cursor import MySQLCursor
 from utils.bot_utilities import BotUtilities
 
+
 class BaseDatabaseHandler(Protocol):
     _utils: BotUtilities
     _db: MySQLConnection
@@ -34,7 +35,9 @@ class BaseDatabaseHandler(Protocol):
     def remove_entry(self, user_id: str, puzzle_id: int) -> bool:
         if not self._db.is_connected():
             self.connect()
-        self._cur.execute(f"delete from entries where user_id = {user_id} and puzzle_id = {puzzle_id}")
+        self._cur.execute(
+            f"delete from entries where user_id = {user_id} and puzzle_id = {puzzle_id}"
+        )
         self._db.commit()
         return self._cur.rowcount > 0
 
@@ -47,7 +50,9 @@ class BaseDatabaseHandler(Protocol):
     def entry_exists(self, user_id: str, puzzle_id: int) -> bool:
         if not self._db.is_connected():
             self.connect()
-        self._cur.execute(f"select * from entries where user_id = {user_id} and puzzle_id = {puzzle_id}")
+        self._cur.execute(
+            f"select * from entries where user_id = {user_id} and puzzle_id = {puzzle_id}"
+        )
         return self._cur.rowcount > 0
 
     def connect(self) -> None:
@@ -58,7 +63,7 @@ class BaseDatabaseHandler(Protocol):
             host=self._mysql_host,
             user=self._mysql_user,
             password=self._mysql_pass,
-            database=self._mysql_db_name
+            database=self._mysql_db_name,
         )
         self._db.autocommit = True
         self._cur = self._db.cursor(buffered=True)
@@ -80,10 +85,15 @@ class BaseDatabaseHandler(Protocol):
         thirty_day_months = [4, 6, 9, 11]
         thirty_one_day_months = [1, 3, 5, 7, 8, 10, 12]
         days_in_month = 1
-        if(query_date.month == self._utils.get_todays_date().month and query_date.year == self._utils.get_todays_date().year ):
+        if (
+            query_date.month == self._utils.get_todays_date().month
+            and query_date.year == self._utils.get_todays_date().year
+        ):
             days_in_month = self._utils.get_todays_date().day
         elif query_date.month == 2:
-            if (query_date.year % 4 == 0 and query_date.year % 100 != 0) or (query_date.year % 400 == 0):
+            if (query_date.year % 4 == 0 and query_date.year % 100 != 0) or (
+                query_date.year % 400 == 0
+            ):
                 days_in_month = 29
             else:
                 days_in_month = 28
@@ -91,7 +101,7 @@ class BaseDatabaseHandler(Protocol):
             days_in_month = 30
         elif query_date.month in thirty_one_day_months:
             days_in_month = 31
-        
+
         if days_in_month > 0:
             first_day = query_date.replace(day=1)
             puzzle_ids = []
@@ -100,7 +110,7 @@ class BaseDatabaseHandler(Protocol):
                 puzzle_ids.append(self.get_puzzle_by_date(current_date))
             return puzzle_ids
         return []
-    
+
     def get_all_puzzles(self) -> list[int]:
         if not self._db.is_connected():
             self.connect()
@@ -120,14 +130,20 @@ class BaseDatabaseHandler(Protocol):
     def get_puzzles_by_player(self, user_id) -> list[int]:
         if not self._db.is_connected():
             self.connect()
-        self._cur.execute(f"select distinct puzzle_id from entries where user_id = {user_id}")
+        self._cur.execute(
+            f"select distinct puzzle_id from entries where user_id = {user_id}"
+        )
         return [row[0] for row in self._cur.fetchall()]
 
     def get_players_by_puzzle_id(self, puzzle_id: int) -> list[str]:
         if not self._db.is_connected():
             self.connect()
-        self._cur.execute(f"select distinct user_id from entries where puzzle_id = {puzzle_id}")
+        self._cur.execute(
+            f"select distinct user_id from entries where puzzle_id = {puzzle_id}"
+        )
         return [str(row[0]) for row in self._cur.fetchall()]
 
-    def get_entries_by_player(self, user_id: str, puzzle_list: list[int] = []) -> list[object]:
+    def get_entries_by_player(
+        self, user_id: str, puzzle_list: list[int] = []
+    ) -> list[object]:
         pass

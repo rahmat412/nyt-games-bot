@@ -7,6 +7,7 @@ from games.wordle import WordleCommandHandler
 from utils.bot_utilities import BotUtilities
 from utils.help_handler import HelpMenuHandler
 
+
 def load_env_file(path: str | None = None, override: bool = False) -> None:
     """
     Load KEY=VALUE lines from a .env file into os.environ.
@@ -32,16 +33,16 @@ def load_env_file(path: str | None = None, override: bool = False) -> None:
         # no .env present — that's fine
         pass
 
+
 # load .env (won't override real environment vars unless override=True)
 load_env_file()
 
 # turn off logging for webdriver manager
-os.environ['WDM_LOG_LEVEL'] = '0'
+os.environ["WDM_LOG_LEVEL"] = "0"
 
 # parse environment variables
-token = os.getenv('DISCORD_TOKEN')
-discord_env = os.getenv('DISCORD_ENV')
-guild_id = os.getenv('GUILD_ID')
+token = os.getenv("DISCORD_TOKEN")
+guild_id = os.getenv("GUILD_ID")
 
 # build Discord client
 intents = discord.Intents.all()
@@ -50,7 +51,9 @@ client = discord.Client(intents=intents)
 activity = discord.Game(name="?help")
 
 # set up the bot
-bot = commands.Bot(command_prefix='?', intents=intents, activity=activity, help_command=None)
+bot = commands.Bot(
+    command_prefix="?", intents=intents, activity=activity, help_command=None
+)
 bot.guild_id = int(guild_id) if guild_id.isnumeric() else -1
 bot.utils = BotUtilities(client, bot)
 bot.help_menu = HelpMenuHandler()
@@ -61,18 +64,19 @@ bot.strands = StrandsCommandHandler(bot.utils)
 bot.wordle = WordleCommandHandler(bot.utils)
 bot.pips = PipsCommandHandler(bot.utils)
 
+
 # load the cogs
 async def main():
     try:
         async with bot:
-            for extension in ['cogs.members', 'cogs.owner']:
+            for extension in ["cogs.members", "cogs.owner"]:
                 try:
                     await bot.load_extension(extension)
                 except Exception as e:
                     print(f"Failed to load extension '{extension}'.\n{e}")
             await bot.start(token, reconnect=True)
     except asyncio.exceptions.CancelledError as e:
-        print('\nCaught user exit, exiting...')
+        print("\nCaught user exit, exiting...")
 
 
 # load the database when ready
@@ -86,6 +90,7 @@ async def on_ready():
         print("Database loaded & successfully logged in.")
     except Exception as e:
         print(f"Failed to load database: {e}")
+
 
 # run the bot
 asyncio.run(main())

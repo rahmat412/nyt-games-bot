@@ -3,6 +3,7 @@ from typing import Protocol
 from data.base_data_handler import BaseDatabaseHandler
 from utils.bot_utilities import BotUtilities
 
+
 class BaseCommandHandler(Protocol):
     MAX_DATAFRAME_ROWS: int = 10
 
