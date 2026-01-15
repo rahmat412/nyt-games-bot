@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  nyt-games-bot:
+    image: ghcr.io/rahmat412/nyt-games-bot:latest
+    container_name: nyt-games-bot
+    restart: unless-stopped
+    environment:
+      # Discord
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GUILD_ID=${GUILD_ID}
+
+      # Wordle MySQL
+      - WORDLE_MYSQL_HOST=${WORDLE_MYSQL_HOST}
+      - WORDLE_MYSQL_USER=${WORDLE_MYSQL_USER}
+      - WORDLE_MYSQL_PASS=${WORDLE_MYSQL_PASS}
+      - WORDLE_MYSQL_DB_NAME=${WORDLE_MYSQL_DB_NAME:-nyt_wordle}
+
+      # Connections MySQL
+      - CONNECTIONS_MYSQL_HOST=${CONNECTIONS_MYSQL_HOST}
+      - CONNECTIONS_MYSQL_USER=${CONNECTIONS_MYSQL_USER}
+      - CONNECTIONS_MYSQL_PASS=${CONNECTIONS_MYSQL_PASS}
+      - CONNECTIONS_MYSQL_DB_NAME=${CONNECTIONS_MYSQL_DB_NAME:-nyt_connections}
+
+      # Strands MySQL
+      - STRANDS_MYSQL_HOST=${STRANDS_MYSQL_HOST}
+      - STRANDS_MYSQL_USER=${STRANDS_MYSQL_USER}
+      - STRANDS_MYSQL_PASS=${STRANDS_MYSQL_PASS}
+      - STRANDS_MYSQL_DB_NAME=${STRANDS_MYSQL_DB_NAME:-nyt_strands}
+
+      # Pips MySQL
+      - PIPS_MYSQL_HOST=${PIPS_MYSQL_HOST}
+      - PIPS_MYSQL_USER=${PIPS_MYSQL_USER}
+      - PIPS_MYSQL_PASS=${PIPS_MYSQL_PASS}
+      - PIPS_MYSQL_DB_NAME=${PIPS_MYSQL_DB_NAME:-nyt_pips}
+
+      # Optional
+      - CONFIRM_ENTRIES=${CONFIRM_ENTRIES:-True}
+    networks:
+      - default
+
+  # Optional: Auto-update container when new image is pushed
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower-nyt-bot
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_SCOPE=nyt-games-bot
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: nyt-games-bot
+    labels:
+      - "com.centurylinklabs.watchtower.scope=nyt-games-bot"
+
+networks:
+  default:
+    driver: bridge

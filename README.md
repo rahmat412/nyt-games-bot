@@ -55,6 +55,15 @@ NOTE: `?add` is NOT needed to record entries. Just paste the output from the gam
 | ---- | ---- |
 | ![image](https://user-images.githubusercontent.com/25470007/213816840-58b1dd57-5862-4a1b-a5d6-58eecfe1ba0f.png) | ![image](https://user-images.githubusercontent.com/25470007/213817547-7a066053-56f9-4149-9740-5abc3ffcf68f.png) |
 
+## Deployment
+
+For detailed deployment instructions using Portainer on Synology NAS, see [docs/PORTAINER_DEPLOYMENT.md](docs/PORTAINER_DEPLOYMENT.md).
+
+**Quick Deploy with Docker:**
+```bash
+docker pull ghcr.io/rahmat412/nyt-games-bot:latest
+```
+
 ## Notes
 
 To create your own bot and deploy this yourself, I highly suggest taking a look at [this](https://realpython.com/how-to-make-a-discord-bot-python/) guide.

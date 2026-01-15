@@ -1,0 +1,76 @@
+version: "3.8"
+
+# Full stack with MariaDB included
+# Use this if you want everything in one stack
+
+services:
+  # MariaDB Database
+  mariadb:
+    image: mariadb:10
+    container_name: nyt-mariadb
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_USER=${MYSQL_USER:-nyt_bot}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - /volume1/docker/nyt-mariadb:/var/lib/mysql
+      - ./scripts/docker-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # NYT Games Discord Bot
+  nyt-games-bot:
+    image: ghcr.io/rahmat412/nyt-games-bot:latest
+    container_name: nyt-games-bot
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      # Discord
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GUILD_ID=${GUILD_ID}
+
+      # Wordle MySQL (use container name as host)
+      - WORDLE_MYSQL_HOST=mariadb
+      - WORDLE_MYSQL_USER=${MYSQL_USER:-nyt_bot}
+      - WORDLE_MYSQL_PASS=${MYSQL_PASSWORD}
+      - WORDLE_MYSQL_DB_NAME=nyt_wordle
+
+      # Connections MySQL
+      - CONNECTIONS_MYSQL_HOST=mariadb
+      - CONNECTIONS_MYSQL_USER=${MYSQL_USER:-nyt_bot}
+      - CONNECTIONS_MYSQL_PASS=${MYSQL_PASSWORD}
+      - CONNECTIONS_MYSQL_DB_NAME=nyt_connections
+
+      # Strands MySQL
+      - STRANDS_MYSQL_HOST=mariadb
+      - STRANDS_MYSQL_USER=${MYSQL_USER:-nyt_bot}
+      - STRANDS_MYSQL_PASS=${MYSQL_PASSWORD}
+      - STRANDS_MYSQL_DB_NAME=nyt_strands
+
+      # Pips MySQL
+      - PIPS_MYSQL_HOST=mariadb
+      - PIPS_MYSQL_USER=${MYSQL_USER:-nyt_bot}
+      - PIPS_MYSQL_PASS=${MYSQL_PASSWORD}
+      - PIPS_MYSQL_DB_NAME=nyt_pips
+
+      # Optional
+      - CONFIRM_ENTRIES=${CONFIRM_ENTRIES:-True}
+
+  # Optional: Auto-update container when new image is pushed
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower-nyt-bot
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_SCOPE=nyt-games-bot
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: nyt-games-bot
