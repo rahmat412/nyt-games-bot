@@ -22,27 +22,17 @@ This guide walks you through deploying the NYT Games Discord Bot on a Synology N
 4. Open **MariaDB 10** from the main menu and enable TCP/IP connections
 5. Note the port (default: 3306)
 
-**Finding your MySQL Host IP:**
+**MySQL Host Configuration:**
 
-For containers to connect to MariaDB on Synology, use one of these host values:
+The `docker-compose.yml` includes `extra_hosts` that maps `host.docker.internal` to your NAS IP automatically.
 
-| Method | Host Value | When to Use |
-|--------|------------|-------------|
-| NAS Local IP | `192.168.x.x` | Most reliable - works in all setups |
-| Docker Gateway | `172.17.0.1` | When container and MariaDB are on same NAS |
-| Host Network | `host.docker.internal` | May not work on all Synology models |
+| Setup | Host Value |
+|-------|------------|
+| Synology MariaDB Package | `host.docker.internal` (recommended - auto-resolves) |
+| MariaDB in same Docker stack | `mariadb` (container name) |
+| Manual IP | `192.168.x.x` (your NAS IP) |
 
-**To find your NAS IP:**
-1. Open **Control Panel** → **Network** → **Network Interface**
-2. Look for your active LAN connection (e.g., `192.168.1.100`)
-
-**To find Docker Gateway IP:**
-```bash
-# SSH into Synology and run:
-docker network inspect bridge | grep Gateway
-```
-
-**Recommended:** Use your NAS local IP (e.g., `192.168.1.100`) as it's the most reliable option.
+**Recommended:** Use `host.docker.internal` - it automatically resolves to your Synology's IP address without hardcoding.
 
 ### Option B: Using MariaDB in Docker
 
@@ -151,10 +141,14 @@ CREATE USER IF NOT EXISTS 'nyt_bot'@'%' IDENTIFIED BY 'your_secure_password';
 2. Click **New Application** and give it a name
 3. Go to **Bot** section in the left sidebar
 4. Click **Reset Token** and copy your bot token (save this securely)
-5. Enable these **Privileged Gateway Intents**:
-   - Presence Intent
-   - Server Members Intent
-   - Message Content Intent
+5. **IMPORTANT:** Enable ALL **Privileged Gateway Intents**:
+   - ✅ **Presence Intent** - Required
+   - ✅ **Server Members Intent** - Required
+   - ✅ **Message Content Intent** - Required
+6. Click **Save Changes**
+
+> ⚠️ **If you skip step 5**, you will get this error:
+> `discord.errors.PrivilegedIntentsRequired: Shard ID None is requesting privileged intents that have not been explicitly enabled`
 
 ### Invite Bot to Your Server
 
@@ -322,12 +316,27 @@ If you prefer manual updates, remove the `watchtower` service from your stack:
 
 ## Troubleshooting
 
+### PrivilegedIntentsRequired Error
+
+```
+discord.errors.PrivilegedIntentsRequired: Shard ID None is requesting privileged intents...
+```
+
+**Fix:** Enable all Privileged Gateway Intents in Discord Developer Portal:
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Select your application → **Bot**
+3. Enable ALL three intents:
+   - ✅ Presence Intent
+   - ✅ Server Members Intent
+   - ✅ Message Content Intent
+4. Save and restart the container
+
 ### Bot Not Responding
 
 1. Check container logs for errors
 2. Verify `DISCORD_TOKEN` is correct
 3. Ensure bot has proper permissions in Discord
-4. Check that Message Content Intent is enabled in Discord Developer Portal
+4. Check that all Privileged Gateway Intents are enabled in Discord Developer Portal
 
 ### Database Connection Failed
 

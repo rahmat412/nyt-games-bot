@@ -5,6 +5,10 @@ services:
     image: ghcr.io/rahmat412/nyt-games-bot:latest
     container_name: nyt-games-bot
     restart: unless-stopped
+    # For Synology: maps host.docker.internal to Docker gateway (172.17.0.1)
+    # If this doesn't work, use your NAS IP directly (e.g., 192.168.1.100)
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
     environment:
       # Discord
       - DISCORD_TOKEN=${DISCORD_TOKEN}

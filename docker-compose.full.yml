@@ -14,8 +14,7 @@ services:
       - MYSQL_USER=${MYSQL_USER:-nyt_bot}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     volumes:
-      - /volume1/docker/nyt-mariadb:/var/lib/mysql
-      - ./scripts/docker-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - nyt-mariadb-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -74,3 +73,6 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: nyt-games-bot
+
+volumes:
+  nyt-mariadb-data:
