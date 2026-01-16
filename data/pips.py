@@ -28,6 +28,34 @@ class PipsDatabaseHandler(BaseDatabaseHandler):
         self._mysql_pass = os.environ.get("PIPS_MYSQL_PASS", "")
         self._mysql_db_name = os.environ.get("PIPS_MYSQL_DB_NAME", "pips")
 
+    def _init_tables(self) -> None:
+        """Create tables if they don't exist."""
+        self._cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                name VARCHAR(255),
+                UNIQUE KEY uq_user_id(user_id)
+            )
+        """)
+        self._cur.execute("""
+            CREATE TABLE IF NOT EXISTS entries (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                puzzle_id INT NOT NULL,
+                user_id BIGINT NOT NULL,
+                easy_seconds INT,
+                medium_seconds INT,
+                hard_seconds INT,
+                easy_cookie BOOLEAN,
+                medium_cookie BOOLEAN,
+                hard_cookie BOOLEAN,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_puzzle_user(puzzle_id, user_id),
+                INDEX idx_puzzle_id(puzzle_id),
+                INDEX idx_user_id(user_id)
+            )
+        """)
+
     ####################
     #  PUZZLE METHODS  #
     ####################

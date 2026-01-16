@@ -15,12 +15,36 @@ services:
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     volumes:
       - nyt-mariadb-data:/var/lib/mysql
-      - ./scripts/docker-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Database initializer (runs once to create databases and grant permissions)
+  db-init:
+    image: mariadb:10
+    container_name: nyt-db-init
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      - MYSQL_PWD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+    entrypoint: >
+      sh -c "
+        mysql -h mariadb -u root -e \"
+          CREATE DATABASE IF NOT EXISTS nyt_wordle;
+          CREATE DATABASE IF NOT EXISTS nyt_connections;
+          CREATE DATABASE IF NOT EXISTS nyt_strands;
+          CREATE DATABASE IF NOT EXISTS nyt_pips;
+          GRANT ALL PRIVILEGES ON nyt_wordle.* TO '${MYSQL_USER:-nyt_bot}'@'%';
+          GRANT ALL PRIVILEGES ON nyt_connections.* TO '${MYSQL_USER:-nyt_bot}'@'%';
+          GRANT ALL PRIVILEGES ON nyt_strands.* TO '${MYSQL_USER:-nyt_bot}'@'%';
+          GRANT ALL PRIVILEGES ON nyt_pips.* TO '${MYSQL_USER:-nyt_bot}'@'%';
+          FLUSH PRIVILEGES;
+        \" && echo 'Databases initialized successfully'
+      "
+    restart: "no"
 
   # NYT Games Discord Bot
   nyt-games-bot:
@@ -30,6 +54,8 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     environment:
       # Discord
       - DISCORD_TOKEN=${DISCORD_TOKEN}

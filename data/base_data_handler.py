@@ -67,6 +67,11 @@ class BaseDatabaseHandler(Protocol):
         )
         self._db.autocommit = True
         self._cur = self._db.cursor(buffered=True)
+        self._init_tables()
+
+    def _init_tables(self) -> None:
+        """Create tables if they don't exist. Override in subclasses."""
+        pass
 
     ####################
     #  PUZZLE METHODS  #
