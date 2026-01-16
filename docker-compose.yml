@@ -1,47 +1,68 @@
 version: "3.8"
 
 services:
+  # MariaDB Database
+  mariadb:
+    image: mariadb:10
+    container_name: nyt-games-mariadb
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_USER=${MYSQL_USER:-nytbot}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-nytbotpassword}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./scripts/setup.sql:/docker-entrypoint-initdb.d/setup.sql:ro
+    ports:
+      - "3306:3306"  # Expose port to access from host (optional)
+    networks:
+      - nyt-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   nyt-games-bot:
     image: ghcr.io/rahmat412/nyt-games-bot:latest
     container_name: nyt-games-bot
     restart: unless-stopped
-    # For Synology: maps host.docker.internal to Docker gateway (172.17.0.1)
-    # If this doesn't work, use your NAS IP directly (e.g., 192.168.1.100)
-    extra_hosts:
-      - "host.docker.internal:172.17.0.1"
+    depends_on:
+      mariadb:
+        condition: service_healthy
     environment:
       # Discord
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - GUILD_ID=${GUILD_ID}
 
-      # Wordle MySQL
-      - WORDLE_MYSQL_HOST=${WORDLE_MYSQL_HOST}
-      - WORDLE_MYSQL_USER=${WORDLE_MYSQL_USER}
-      - WORDLE_MYSQL_PASS=${WORDLE_MYSQL_PASS}
-      - WORDLE_MYSQL_DB_NAME=${WORDLE_MYSQL_DB_NAME:-nyt_wordle}
+      # Wordle MySQL (use container name 'mariadb' as host)
+      - WORDLE_MYSQL_HOST=mariadb
+      - WORDLE_MYSQL_USER=${MYSQL_USER:-nytbot}
+      - WORDLE_MYSQL_PASS=${MYSQL_PASSWORD:-nytbotpassword}
+      - WORDLE_MYSQL_DB_NAME=nyt_wordle
 
       # Connections MySQL
-      - CONNECTIONS_MYSQL_HOST=${CONNECTIONS_MYSQL_HOST}
-      - CONNECTIONS_MYSQL_USER=${CONNECTIONS_MYSQL_USER}
-      - CONNECTIONS_MYSQL_PASS=${CONNECTIONS_MYSQL_PASS}
-      - CONNECTIONS_MYSQL_DB_NAME=${CONNECTIONS_MYSQL_DB_NAME:-nyt_connections}
+      - CONNECTIONS_MYSQL_HOST=mariadb
+      - CONNECTIONS_MYSQL_USER=${MYSQL_USER:-nytbot}
+      - CONNECTIONS_MYSQL_PASS=${MYSQL_PASSWORD:-nytbotpassword}
+      - CONNECTIONS_MYSQL_DB_NAME=nyt_connections
 
       # Strands MySQL
-      - STRANDS_MYSQL_HOST=${STRANDS_MYSQL_HOST}
-      - STRANDS_MYSQL_USER=${STRANDS_MYSQL_USER}
-      - STRANDS_MYSQL_PASS=${STRANDS_MYSQL_PASS}
-      - STRANDS_MYSQL_DB_NAME=${STRANDS_MYSQL_DB_NAME:-nyt_strands}
+      - STRANDS_MYSQL_HOST=mariadb
+      - STRANDS_MYSQL_USER=${MYSQL_USER:-nytbot}
+      - STRANDS_MYSQL_PASS=${MYSQL_PASSWORD:-nytbotpassword}
+      - STRANDS_MYSQL_DB_NAME=nyt_strands
 
       # Pips MySQL
-      - PIPS_MYSQL_HOST=${PIPS_MYSQL_HOST}
-      - PIPS_MYSQL_USER=${PIPS_MYSQL_USER}
-      - PIPS_MYSQL_PASS=${PIPS_MYSQL_PASS}
-      - PIPS_MYSQL_DB_NAME=${PIPS_MYSQL_DB_NAME:-nyt_pips}
+      - PIPS_MYSQL_HOST=mariadb
+      - PIPS_MYSQL_USER=${MYSQL_USER:-nytbot}
+      - PIPS_MYSQL_PASS=${MYSQL_PASSWORD:-nytbotpassword}
+      - PIPS_MYSQL_DB_NAME=nyt_pips
 
       # Optional
       - CONFIRM_ENTRIES=${CONFIRM_ENTRIES:-True}
     networks:
-      - default
+      - nyt-network
 
   # Optional: Auto-update container when new image is pushed
   watchtower:
@@ -58,6 +79,9 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.scope=nyt-games-bot"
 
+volumes:
+  mariadb_data:
+
 networks:
-  default:
+  nyt-network:
     driver: bridge

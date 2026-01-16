@@ -1,7 +1,14 @@
-CREATE DATABASE nyt_wordle;
-CREATE DATABASE nyt_connections;
-CREATE DATABASE nyt_strands;
-CREATE DATABASE nyt_pips;
+CREATE DATABASE IF NOT EXISTS nyt_wordle;
+CREATE DATABASE IF NOT EXISTS nyt_connections;
+CREATE DATABASE IF NOT EXISTS nyt_strands;
+CREATE DATABASE IF NOT EXISTS nyt_pips;
+
+-- Grant privileges to the bot user (created via MYSQL_USER env var)
+GRANT ALL PRIVILEGES ON nyt_wordle.* TO 'nytbot'@'%';
+GRANT ALL PRIVILEGES ON nyt_connections.* TO 'nytbot'@'%';
+GRANT ALL PRIVILEGES ON nyt_strands.* TO 'nytbot'@'%';
+GRANT ALL PRIVILEGES ON nyt_pips.* TO 'nytbot'@'%';
+FLUSH PRIVILEGES;
 
 
 -- users table (shared pattern)
