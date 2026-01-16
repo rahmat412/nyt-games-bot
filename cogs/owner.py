@@ -26,13 +26,13 @@ class OwnerCog(commands.Cog, name="Owner-Only Commands"):
     #   COMMAND SETUP   #
     #####################
 
-    @commands.is_owner()
+    @commands.has_permissions(administrator=True)
     @commands.command(name="remove", help="Removes one puzzle entry for a player")
     async def remove_entry(self, ctx: commands.Context, *args: str) -> None:
         [handler, handler_args] = self.get_command_handler_and_args(ctx, args)
         await handler.remove_entry(ctx, *handler_args)
 
-    @commands.is_owner()
+    @commands.has_permissions(administrator=True)
     @commands.command(name="add", help="Manually adds a puzzle entry for a player")
     async def add_score(self, ctx: commands.Context, *args: str) -> None:
         [handler, handler_args] = self.get_command_handler_and_args(ctx, args)
